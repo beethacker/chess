@@ -1,0 +1,53 @@
+h1 {
+}
+
+.square {
+}
+
+.square.white {
+	background: lightgray;
+}
+
+.square.black {
+	background: black;
+}
+
+.piece {
+	display: inline-block;
+	/*background-image: url("sprites.png");*/
+	position: relative;
+	overflow: hidden;
+	/*max-width: 100%;*/
+	/*
+	margin-left: -800px;
+	width: 1000px;
+	height: 200px;
+	*/
+}
+
+#test {
+	overflow: hidden;
+	width: 200px;
+	height: 200px;
+	transform: scale(0.25);
+}
+
+.test{
+	position: relative;
+	background-image: url("sprites.png");
+	margin-left: -800px;
+	width: 1000px;
+	height: 200px;
+}
+
+#board {
+	white-space: nowrap;
+	display: grid;
+	background: brown;
+	width: 800;
+	height: 800;
+	border: solid 8px gray;
+
+	grid-template-columns: repeat(8, 1fr);
+	grid-template-rows: repeat(8, 1fr);
+}
