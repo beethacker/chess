@@ -40,14 +40,23 @@ h1 {
 	height: 200px;
 }
 
+#sprites {
+	display: none;
+}
+
+#canvas {
+	margin-left: 10%;
+	border: solid 8px gray;
+}
+
 #board {
-	white-space: nowrap;
-	display: grid;
-	background: brown;
-	width: 800;
-	height: 800;
+	/*white-space: nowrap;*/
+	/*display: grid;*/
+	/*background: brown;*/
+	/*width: 800;*/
+	/*height: 800;*/
 	border: solid 8px gray;
 
-	grid-template-columns: repeat(8, 1fr);
-	grid-template-rows: repeat(8, 1fr);
+	/*grid-template-columns: repeat(8, 1fr);*/
+	/*grid-template-rows: repeat(8, 1fr);*/
 }
