@@ -1,8 +1,12 @@
 
 
+//
+//
+// Constants
+//
+//
+
 const CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_";
-//a=97
-//A=65
 
 const KING = 0;
 const QUEEN = 1;
@@ -28,16 +32,30 @@ const SPRITE_DIM = 200;
 //
 // !GLOBAL STATE!
 //
-var state = {
-	"mouseDown" : false,
+var COMPONENTS = {};
+
+var STATE = {
+	"mouseDownSquare" : -1,
+	"mouse" : {offsetx:0, offsety:0},
 	"n" : 8,
 	"pieces" : [],
 	"inHand" : null,
+	"squarePixels" : 1,
+	"recorded" : [],
+	// "undoHistory" : [],
+	"lastTurn" : [],
 
 
 	"indexToCoord" : function(i) {
 		return {row: Math.floor(i / this.n), col: i % this.n};
-	}
+	},
+
+	"mouseToIndex" : function(event) {
+		var col = Math.floor(event.offsetX/this.squarePixels);
+		var row = Math.floor(event.offsetY/this.squarePixels);
+		//TODO do we need to clamp these?
+		return row*this.n + col;
+	},
 };
 
 
@@ -51,24 +69,43 @@ function resize() {
 
 	//TODO do this on a tick....
 	var dim = 8*Math.floor(0.7*Math.min(window.innerWidth, window.innerHeight)/8);
+	STATE.squarePixels = dim/8;
 	if (dim != ctx.canvas.width) {
 		ctx.canvas.width = dim;
 		ctx.canvas.height = dim;
-		render(ctx, "");
+		render(ctx);
 	}	
 }
 
-
 function onMouseDown(event) {
-	state.mouseDown = true;
+	var i = STATE.mouseDownSquare = STATE.mouseToIndex(event);
+	STATE.mouse = event;
+	STATE.inHand = STATE.pieces[i];
+	STATE.pieces[i] = null;
+	render();
 }
 
 function onMouseUp(event) {
-	state.mouseDown = false;
+	if (STATE.inHand != null) {
+		var i = STATE.mouseToIndex(event);
+
+		if (STATE.mouseDownSquare != i) {
+			STATE.recorded.push({from: STATE.mouseDownSquare, to: i});
+			console.log(STATE.recorded);
+		}
+
+		STATE.pieces[i] = STATE.inHand;
+		STATE.inHand = null;		
+	}
+	STATE.mouseDownSquare = -1;
+	STATE.mouse = null;
+	render();
 }
 
 function onMouseMove(event) {
-	if (state.mouseDown) {
+	if (STATE.mouseDownSquare > 0) {
+		STATE.mouse = event;
+		render();
 	}
 }
 
@@ -83,21 +120,26 @@ function drawPiece(ctx, img, size, coord, piece) {
 	ctx.drawImage(img, sleft, stop, SPRITE_DIM, SPRITE_DIM, coord.col*size, coord.row*size, size, size);
 }
 
+function drawPiecePx(ctx, img, size, mouse, piece) {
+	var sleft = SPRITE_DIM*piece.type;
+	var stop = SPRITE_DIM*piece.color;
+	ctx.drawImage(img, sleft, stop, SPRITE_DIM, SPRITE_DIM, mouse.offsetX - size/2, mouse.offsetY - size/2, size, size);
+}
 
-function render(ctx) {
-	console.log("Render: " + state);
-	ctx.fillStyle = "#000000";
-	ctx.fillRect(0, 0, 400, 400);
+// Render the canvas
+function render() {
+	var ctx = COMPONENTS.ctx;
 
-	ctx.fillStyle = "#F0DB4F";
-	ctx.fillRect(50, 50, 200, 200);
+	var size = STATE.squarePixels;
 
-
-	var size = Math.floor(ctx.canvas.width / 8);
+	// Draw board
 	for (var i = 0; i < 64; i++) {
 		var row = Math.floor(i / 8);
 		var col = i % 8;
-		if ((row%2)==(col%2)) {
+		if (i == STATE.mouseDownSquare) {
+			ctx.fillStyle = "#CCFFCC";
+		}
+		else if ((row%2)==(col%2)) {
 			ctx.fillStyle = "#FFDDDD";
 		}
 		else {
@@ -109,21 +151,23 @@ function render(ctx) {
 
 
 	var img = document.querySelector("#sprites");
-	//NOTE for now, let's just stub in the stuff.
-	/*
-	drawPiece(ctx, img, size, {row:0, col:2}, {color:WHITE, type:ROOK});
-	drawPiece(ctx, img, size, {row:7, col:7}, {color:BLACK, type:QUEEN});
-	for (var i = 0; i < 7; i++) {
-		drawPiece(ctx, img, size, {row:1, col:i}, {color:WHITE, type:PAWN});
-		drawPiece(ctx, img, size, {row:6, col:i}, {color:BLACK, type:PAWN});
-	}
-	*/
-	for (var i = 0; i < state.n * state.n; i++) {
-		var coord = state.indexToCoord(i);
-		var piece = state.pieces[i];
+
+	// Draw pieces!
+	for (var i = 0; i < STATE.n * STATE.n; i++) {
+		var coord = STATE.indexToCoord(i);
+		var piece = STATE.pieces[i];
 		if (piece != null) {
 			drawPiece(ctx, img, size, coord, piece);
 		}
+	}
+
+	// If there's a piece in hand, draw it at the mouse
+	if (STATE.inHand != null) {
+		drawPiecePx(ctx, img, size, STATE.mouse, STATE.inHand);
+	}
+
+	if (STATE.recorded.length > 0) {
+		COMPONENTS.output.text("TODO new link goes here!");
 	}
 }
 
@@ -156,6 +200,10 @@ function fenPiece(char) {
 }
 
 $(document).ready(function() {
+
+	COMPONENTS.canvas = document.querySelector("#canvas");
+	COMPONENTS.ctx = COMPONENTS.canvas.getContext("2d");	
+
 	$("#canvas").mousedown(onMouseDown).mouseup(onMouseUp).mousemove(onMouseMove);
 
 	var sPageURL = window.location.search.substring(1);
@@ -168,13 +216,7 @@ $(document).ready(function() {
 	}
 	console.log(parameters);
 
-
-
-	//TODO we'll grab this from url in a minute, but for now, lets hardcode in
-	//a list of 64 squares, each showing whats on it. we can use FEN notation here
-	//that gives a pretty compressed sense of it. ignore _.
-	// board, turn, castle availability, en passant availability, turn num.
-
+	COMPONENTS.output = $("#output");
 
 	// console.log(fen);
 	/*
@@ -186,7 +228,7 @@ $(document).ready(function() {
 	*/
 	var fen = parameters.fen;
 	if (fen == null) {
-		fen = "rnbqkbnr_pppppppp_8_8_8_8_PPPPPPPP_RNBQKBNR";
+		fen = "rnbqkbnr_pppppppp_8_8_8_8_PPPPPPPP_RNBQKBNR"
 	}
 	fen = fen.replaceAll("_", "");
 
@@ -194,7 +236,7 @@ $(document).ready(function() {
 	for (var i = 0; i < fen.length; i++) {
 		var piece = fenPiece(fen.charAt(i));	
 		if ("color" in piece) {
-			state.pieces[square++] = piece;
+			STATE.pieces[square++] = piece;
 		}
 		else if ("space" in piece) {
 			square += piece.space; 
@@ -203,7 +245,7 @@ $(document).ready(function() {
 			alert("can't parse: " + fen[i]);
 		}
 	}
-	console.log(state.pieces);
+	console.log(STATE.pieces);
 
 	resize();
 
