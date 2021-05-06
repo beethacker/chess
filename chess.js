@@ -1,10 +1,4 @@
-window.setTimeout(function () { 
-	// window.location = "index.html?nocache=" + (new Date()).getTime();
-}, 4000); 
 
-$(window).resize(function() {
-	resize();
-});
 
 const CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_";
 //a=97
@@ -31,12 +25,27 @@ const BLACK = 1;
 
 const SPRITE_DIM = 200;
 
+//
+// !GLOBAL STATE!
+//
 var state = {
 	"mouseDown" : false,
+	"n" : 8,
 	"pieces" : [],
-	"inHand" : null
+	"inHand" : null,
+
+
+	"indexToCoord" : function(i) {
+		return {row: Math.floor(i / this.n), col: i % this.n};
+	}
 };
 
+
+//
+// EVENT HANDLING
+//
+
+//On resize, update canvas size and rerender board
 function resize() {
 	var ctx = document.querySelector("#canvas").getContext("2d");
 
@@ -49,27 +58,31 @@ function resize() {
 	}	
 }
 
+
 function onMouseDown(event) {
-	// console.log(event);
 	state.mouseDown = true;
 }
 
 function onMouseUp(event) {
-	// console.log(event);
 	state.mouseDown = false;
 }
 
 function onMouseMove(event) {
 	if (state.mouseDown) {
-		// console.log("Move: " + event.offsetX + ", " + event.offsetY);
 	}
 }
 
+//
+//
+//  !RENDERING!
+//
+//
 function drawPiece(ctx, img, size, coord, piece) {
 	var sleft = SPRITE_DIM*piece.type;
 	var stop = SPRITE_DIM*piece.color;
 	ctx.drawImage(img, sleft, stop, SPRITE_DIM, SPRITE_DIM, coord.col*size, coord.row*size, size, size);
 }
+
 
 function render(ctx) {
 	console.log("Render: " + state);
@@ -105,9 +118,12 @@ function render(ctx) {
 		drawPiece(ctx, img, size, {row:6, col:i}, {color:BLACK, type:PAWN});
 	}
 	*/
-	for (var i = 0; i < state.pieces.length; i++) {
+	for (var i = 0; i < state.n * state.n; i++) {
+		var coord = state.indexToCoord(i);
 		var piece = state.pieces[i];
-		drawPiece(ctx, img, size, piece, piece);
+		if (piece != null) {
+			drawPiece(ctx, img, size, coord, piece);
+		}
 	}
 }
 
@@ -178,10 +194,7 @@ $(document).ready(function() {
 	for (var i = 0; i < fen.length; i++) {
 		var piece = fenPiece(fen.charAt(i));	
 		if ("color" in piece) {
-			piece.row = Math.floor(square/8);
-			piece.col = square%8;
-			state.pieces.push(piece);
-			square++;
+			state.pieces[square++] = piece;
 		}
 		else if ("space" in piece) {
 			square += piece.space; 
@@ -193,4 +206,12 @@ $(document).ready(function() {
 	console.log(state.pieces);
 
 	resize();
+
+	window.setTimeout(function () { 
+		// window.location = "index.html?nocache=" + (new Date()).getTime();
+	}, 4000); 
+
+	$(window).resize(function() {
+		resize();
+	});
 });
