@@ -35,25 +35,35 @@ const SPRITE_DIM = 200;
 var COMPONENTS = {};
 
 var STATE = {
-	"mouseDownSquare" : -1,
+	"fromSquare" : -1,
 	"mouse" : {offsetx:0, offsety:0},
 	"n" : 8,
 	"pieces" : [],
 	"inHand" : null,
 	"squarePixels" : 1,
 	"recorded" : [],
+	"current" : WHITE,
 	// "undoHistory" : [],
 	"lastTurn" : [],
 
 
 	"indexToCoord" : function(i) {
-		return {row: Math.floor(i / this.n), col: i % this.n};
+		var row = Math.floor(i / this.n);
+		var col = i % this.n;
+		if (this.current == BLACK) {
+			row = this.n - 1 - row;
+			col = this.n - 1 - col;
+		}
+		return {row: row, col: col};
 	},
 
 	"mouseToIndex" : function(event) {
 		var col = Math.floor(event.offsetX/this.squarePixels);
 		var row = Math.floor(event.offsetY/this.squarePixels);
-		//TODO do we need to clamp these?
+		if (this.current == BLACK) {
+			col = this.n - 1 - col;
+			row = this.n - 1 - row;
+		}
 		return row*this.n + col;
 	},
 };
@@ -78,39 +88,57 @@ function resize() {
 }
 
 function onMouseDown(event) {
-	//We're holding a piece while the mouse isn't down? We probably released while
-	//outside the canvas. Just place the piece instead!
-	if (STATE.inHand != null) {
-		onMouseUp(event);
-		return;
-	}
+	var i = STATE.mouseToIndex(event);
 
-	var i = STATE.mouseDownSquare = STATE.mouseToIndex(event);
-	STATE.mouse = event;
-	STATE.inHand = STATE.pieces[i];
-	STATE.pieces[i] = null;
+	//Are we holding a piece? 
+	if (STATE.inHand != null) {	
+		//If this is the original square, put it down!
+		if (STATE.fromSquare == i) {
+			STATE.pieces[i] = STATE.inHand;
+			STATE.inHand = null;
+		}
+		//Otherwise, place the piece (basically just a mouse up!)
+		else {
+			onMouseUp(event);
+			return;
+		}
+	}
+	//Not holding a piece, pick one up!
+	else {
+		STATE.mouse = event;
+		STATE.inHand = STATE.pieces[i];
+		STATE.pieces[i] = null;
+		STATE.fromSquare = i;
+	}
 	render();
 }
 
 function onMouseUp(event) {
+	console.log("up");
+	//If we're holding a piece, place it on the current square.
 	if (STATE.inHand != null) {
 		var i = STATE.mouseToIndex(event);
 
-		if (STATE.mouseDownSquare != i) {
-			STATE.recorded.push({from: STATE.mouseDownSquare, to: i});
-			console.log(STATE.recorded);
+		//If we release in the same square, ignore the click, and place the piece with
+		//the next mouse down instead!
+		if (STATE.fromSquare == i) {
+			return;
+		}
+
+		if (STATE.fromSquare != i) {
+			STATE.recorded.push({from: STATE.fromSquare, to: i});
 		}
 
 		STATE.pieces[i] = STATE.inHand;
 		STATE.inHand = null;		
 	}
-	STATE.mouseDownSquare = -1;
+	STATE.fromSquare = -1;
 	STATE.mouse = null;
 	render();
 }
 
 function onMouseMove(event) {
-	if (STATE.mouseDownSquare > 0) {
+	if (STATE.fromSquare > 0) {
 		STATE.mouse = event;
 		render();
 	}
@@ -230,7 +258,11 @@ function render() {
 	for (var i = 0; i < 64; i++) {
 		var row = Math.floor(i / 8);
 		var col = i % 8;
-		if (i == STATE.mouseDownSquare) {
+		if (STATE.current == BLACK) {
+			row = STATE.n - 1 - row;
+			col = STATE.n - 1 - col;
+		}
+		if (i == STATE.fromSquare) {
 			ctx.fillStyle = "#CCFFCC";
 		}
 		else if ((row%2)==(col%2)) {
@@ -302,8 +334,9 @@ function render() {
 
 	//If we've recorded a move, then show the output
 	if (STATE.recorded.length > 0) {
+		var nextMove = 1 - STATE.current;
 		var url = window.location.origin + window.location.pathname; 
-		url += "?fen=" + fen;
+		url += "?pos=" + nextMove + fen;
 		url += "?last=" + lastTurn;
 		COMPONENTS.output.text(url);
 	}
@@ -353,11 +386,11 @@ $(document).ready(function() {
 	COMPONENTS.output.click(doOutputClicked);
 
 	// console.log(fen);
-	var fen = parameters.fen;
-	if (fen == null) {
-		fen = "rnbqkbnr_pppppppp_8_8_8_8_PPPPPPPP_RNBQKBNR"
+	var pos = parameters.pos;
+	if (pos == null) {
+		pos = "0_rnbqkbnr_pppppppp_8_8_8_8_PPPPPPPP_RNBQKBNR"
 	}
-	fen = fen.replaceAll("_", "");
+	pos = pos.replaceAll("_", "");
 
 	if (parameters.last != null) {
 		var last = parameters.last;
@@ -368,6 +401,9 @@ $(document).ready(function() {
 		}
 	}
 
+	STATE.current = parseInt(pos.charAt(0));
+
+	var fen = pos.substring(1);
 	var square = 0;
 	for (var i = 0; i < fen.length; i++) {
 		var decode = decodeFen(fen.charAt(i));	
