@@ -341,7 +341,7 @@ $(document).ready(function() {
 
 	var sPageURL = window.location.search.substring(1);
 	console.log(sPageURL);
-	var sURLVar = sPageURL.split("&");
+	var sURLVar = sPageURL.split("?");
 	var parameters = {};
 	for (var i = 0; i < sURLVar.length; i++) {
 		var nameVal = sURLVar[i].split("=");
@@ -353,18 +353,20 @@ $(document).ready(function() {
 	COMPONENTS.output.click(doOutputClicked);
 
 	// console.log(fen);
-	/*
-	console.log("a =>" + "a".charCodeAt(0));
-	console.log("z =>" + "z".charCodeAt(0));
-	console.log("A =>" + "A".charCodeAt(0));
-	console.log("Z =>" + "Z".charCodeAt(0));
-	console.log("0 =>" + "0".charCodeAt(0));
-	*/
 	var fen = parameters.fen;
 	if (fen == null) {
 		fen = "rnbqkbnr_pppppppp_8_8_8_8_PPPPPPPP_RNBQKBNR"
 	}
 	fen = fen.replaceAll("_", "");
+
+	if (parameters.last != null) {
+		var last = parameters.last;
+		for (var i = 0; i < last.length - 1; i+=2) {
+			var from = CHARS.indexOf(last.charAt(i));
+			var to = CHARS.indexOf(last.charAt(i+1));
+			STATE.lastTurn.push({from: from, to: to});
+		}
+	}
 
 	var square = 0;
 	for (var i = 0; i < fen.length; i++) {
