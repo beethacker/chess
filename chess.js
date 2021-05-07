@@ -176,6 +176,50 @@ function drawPiecePx(ctx, img, size, mouse, fen) {
 	ctx.drawImage(img, sleft, stop, SPRITE_DIM, SPRITE_DIM, mouse.offsetX - size/2, mouse.offsetY - size/2, size, size);
 }
 
+function drawArrow(ctx, size, originCoord, endCoord) {
+	var linewidth = ctx.lineWidth;
+
+	var xo = size*originCoord.col + size/2;
+	var yo = size*originCoord.row + size/2;
+	var xe = size*endCoord.col + size/2;
+	var ye = size*endCoord.row + size/2;
+
+	var theta = Math.atan2(yo - ye, xo - xe);
+	var theta1 = theta + Math.PI / 4;
+	var theta2 = theta - Math.PI / 4;
+
+	var x1 = xe + (size/4)*Math.cos(theta1);
+	var y1 = ye + (size/4)*Math.sin(theta1);
+
+	var x2 = xe + (size/4)*Math.cos(theta2);
+	var y2 = ye + (size/4)*Math.sin(theta2);
+
+	var dx = linewidth*Math.cos(theta + Math.PI/2)/2;
+	var dy = linewidth*Math.sin(theta + Math.PI/2)/2;
+
+	//Clean, but middle is double size!
+	// ctx.beginPath();
+	// ctx.moveTo(xo+dx, yo+dy);
+	// ctx.lineTo(xe+dx, ye+dy);
+	// ctx.lineTo(x1+dx, y1+dy);
+	// ctx.moveTo(xo-dx, yo-dy);
+	// ctx.lineTo(xe-dx, ye-dy);
+	// ctx.lineTo(x2-dx, y2-dy);
+	// ctx.stroke();
+
+	ctx.beginPath();
+	ctx.moveTo(xo, yo);
+	ctx.lineTo(xe, ye);
+	ctx.stroke();
+
+	ctx.beginPath();
+	ctx.moveTo(xe+dx, ye+dy);
+	ctx.lineTo(x2+dx, y2+dy);
+	ctx.moveTo(xe-dx, ye-dy);
+	ctx.lineTo(x1-dx, y1-dy);
+	ctx.stroke();
+}
+
 // Render the canvas
 function render() {
 	var ctx = COMPONENTS.ctx;
@@ -216,6 +260,17 @@ function render() {
 		drawPiecePx(ctx, img, size, STATE.mouse, STATE.inHand);
 	}
 
+	// Draw arrows for recorded moves OR for previous moves
+	var arrowMoves = STATE.recorded.length > 0 ? STATE.recorded : STATE.lastTurn;
+	ctx.strokeStyle = STATE.recorded.length > 0 ? "#2c2" : "#a33";
+	ctx.lineWidth = size/20;
+
+	for (var i = 0; i < arrowMoves.length; i++) {
+		var from = STATE.indexToCoord(arrowMoves[i].from);
+		var to = STATE.indexToCoord(arrowMoves[i].to);
+		drawArrow(ctx, size, from, to);
+	}
+
 	//Generate the URL for the new board state
 	var fen = "";
 	var blankCount = 0;
@@ -238,12 +293,22 @@ function render() {
 		}
 	}
 
+	var lastTurn = "";
+	for (var i = 0; i < STATE.recorded.length; i++) {
+		var move = STATE.recorded[i];
+		lastTurn += CHARS[move.from];
+		lastTurn += CHARS[move.to];
+	}
+
 	//If we've recorded a move, then show the output
 	if (STATE.recorded.length > 0) {
-		COMPONENTS.output.text(window.location.origin + window.location.pathname + "?fen=" + fen);
+		var url = window.location.origin + window.location.pathname; 
+		url += "?fen=" + fen;
+		url += "?last=" + lastTurn;
+		COMPONENTS.output.text(url);
 	}
 	else {
-		COMPONENTS.output.text("");
+		COMPONENTS.output.text(" ");
 	}
 }
 
