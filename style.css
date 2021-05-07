@@ -60,3 +60,34 @@ h1 {
 	/*grid-template-columns: repeat(8, 1fr);*/
 	/*grid-template-rows: repeat(8, 1fr);*/
 }
+
+#output {
+	background: #eee;
+	padding: 15px;
+	font-size: x-small;
+}
+
+#output.animate {
+	animation-name: fadeOut;
+	animation-duration: 1s;
+}
+
+@keyframes fadeOut {
+	0% { 
+		background: #9f9; 
+		padding: 25px;
+	}
+
+	10% {
+		padding: 10px;
+	}
+
+	15% {
+		padding: 15px;
+	}
+
+	100% {
+		background: #eee;
+		padding: 15px;
+	}
+}

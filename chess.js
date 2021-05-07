@@ -78,6 +78,13 @@ function resize() {
 }
 
 function onMouseDown(event) {
+	//We're holding a piece while the mouse isn't down? We probably released while
+	//outside the canvas. Just place the piece instead!
+	if (STATE.inHand != null) {
+		onMouseUp(event);
+		return;
+	}
+
 	var i = STATE.mouseDownSquare = STATE.mouseToIndex(event);
 	STATE.mouse = event;
 	STATE.inHand = STATE.pieces[i];
@@ -109,18 +116,61 @@ function onMouseMove(event) {
 	}
 }
 
+
+//
+// Clipboard handling!
+//
+
+function doOutputClicked() {
+	//Select the element.
+	var sel = window.getSelection();
+	var range = document.createRange();
+	range.selectNodeContents(COMPONENTS.output.get(0));
+	sel.removeAllRanges();
+	sel.addRange(range);
+
+	document.execCommand("copy");
+
+	COMPONENTS.output.addClass("animate");
+	window.setTimeout(function() {
+		COMPONENTS.output.removeClass("animate");
+	}, 5000);	
+}
+
 //
 //
 //  !RENDERING!
 //
 //
-function drawPiece(ctx, img, size, coord, piece) {
+function convertFenToRenderPiece(char) {
+	var result = {};
+	switch (char) {
+		case 'p': return {color: BLACK, type: PAWN};
+		case 'r': return {color: BLACK, type: ROOK};
+		case 'n': return {color: BLACK, type: KNIGHT};
+		case 'b': return {color: BLACK, type: BISHOP};
+		case 'k': return {color: BLACK, type: KING};
+		case 'q': return {color: BLACK, type: QUEEN};
+		case 'P': return {color: WHITE, type: PAWN};
+		case 'R': return {color: WHITE, type: ROOK};
+		case 'B': return {color: WHITE, type: BISHOP};
+		case 'N': return {color: WHITE, type: KNIGHT};
+		case 'K': return {color: WHITE, type: KING};
+		case 'Q': return {color: WHITE, type: QUEEN};
+	}
+
+	return {};
+}
+
+function drawPiece(ctx, img, size, coord, fen) {
+	var piece = convertFenToRenderPiece(fen);
 	var sleft = SPRITE_DIM*piece.type;
 	var stop = SPRITE_DIM*piece.color;
 	ctx.drawImage(img, sleft, stop, SPRITE_DIM, SPRITE_DIM, coord.col*size, coord.row*size, size, size);
 }
 
-function drawPiecePx(ctx, img, size, mouse, piece) {
+function drawPiecePx(ctx, img, size, mouse, fen) {
+	var piece = convertFenToRenderPiece(fen);
 	var sleft = SPRITE_DIM*piece.type;
 	var stop = SPRITE_DIM*piece.color;
 	ctx.drawImage(img, sleft, stop, SPRITE_DIM, SPRITE_DIM, mouse.offsetX - size/2, mouse.offsetY - size/2, size, size);
@@ -152,7 +202,7 @@ function render() {
 
 	var img = document.querySelector("#sprites");
 
-	// Draw pieces!
+	// Draw pieces! 
 	for (var i = 0; i < STATE.n * STATE.n; i++) {
 		var coord = STATE.indexToCoord(i);
 		var piece = STATE.pieces[i];
@@ -166,34 +216,50 @@ function render() {
 		drawPiecePx(ctx, img, size, STATE.mouse, STATE.inHand);
 	}
 
+	//Generate the URL for the new board state
+	var fen = "";
+	var blankCount = 0;
+	for (var i = 0; i < STATE.n * STATE.n; i++) {
+		var piece = STATE.pieces[i];
+		if (piece != null) {
+			//If there were blanks, add them
+			if (blankCount > 0) {
+				while (blankCount > 8) {
+					fen += 8;
+					blankCount -= 8;
+				}
+				fen += blankCount;
+				blankCount = 0;
+			}
+			fen += piece;
+		}
+		else {
+			blankCount++;
+		}
+	}
+
+	//If we've recorded a move, then show the output
 	if (STATE.recorded.length > 0) {
-		COMPONENTS.output.text("TODO new link goes here!");
+		COMPONENTS.output.text(window.location.origin + window.location.pathname + "?fen=" + fen);
+	}
+	else {
+		COMPONENTS.output.text("");
 	}
 }
 
-function fenPiece(char) {
-	var result = {};
-	switch (char) {
-		case 'p': return {color: BLACK, type: PAWN};
-		case 'r': return {color: BLACK, type: ROOK};
-		case 'n': return {color: BLACK, type: KNIGHT};
-		case 'b': return {color: BLACK, type: BISHOP};
-		case 'k': return {color: BLACK, type: KING};
-		case 'q': return {color: BLACK, type: QUEEN};
-		case 'P': return {color: WHITE, type: PAWN};
-		case 'R': return {color: WHITE, type: ROOK};
-		case 'B': return {color: WHITE, type: BISHOP};
-		case 'N': return {color: WHITE, type: KNIGHT};
-		case 'K': return {color: WHITE, type: KING};
-		case 'Q': return {color: WHITE, type: QUEEN};
-	}
 
+function decodeFen(char) {
+	var result = {};
+	
 	var code = char.charCodeAt(0);
 	if (code == 48) {
 		return {space: 10};
 	}
 	else if (code > 48 && code < 58) {
 		return {space: code - 48};
+	}
+	else if (CHARS.includes(char)) {
+		return {space: 1, piece: char};
 	}
 
 	return {};
@@ -203,6 +269,8 @@ $(document).ready(function() {
 
 	COMPONENTS.canvas = document.querySelector("#canvas");
 	COMPONENTS.ctx = COMPONENTS.canvas.getContext("2d");	
+
+	console.log(window.location);
 
 	$("#canvas").mousedown(onMouseDown).mouseup(onMouseUp).mousemove(onMouseMove);
 
@@ -217,6 +285,7 @@ $(document).ready(function() {
 	console.log(parameters);
 
 	COMPONENTS.output = $("#output");
+	COMPONENTS.output.click(doOutputClicked);
 
 	// console.log(fen);
 	/*
@@ -234,15 +303,12 @@ $(document).ready(function() {
 
 	var square = 0;
 	for (var i = 0; i < fen.length; i++) {
-		var piece = fenPiece(fen.charAt(i));	
-		if ("color" in piece) {
-			STATE.pieces[square++] = piece;
+		var decode = decodeFen(fen.charAt(i));	
+		if ("piece" in decode) {
+			STATE.pieces[square] = decode.piece;
 		}
-		else if ("space" in piece) {
-			square += piece.space; 
-		}
-		else {
-			alert("can't parse: " + fen[i]);
+		if ("space" in decode) {
+			square += decode.space; 
 		}
 	}
 	console.log(STATE.pieces);
