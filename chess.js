@@ -75,13 +75,12 @@ var STATE = {
 	},
 
 	"trashCurrentPiece" : function() {
+		this.trashed.push(this.fromSquare);
 		this.inHand = null;
 		this.fromSquare = -1;
-		//TODO we want to mark this as deleted, so note the from square!
 		render();
 	},
 };
-
 
 
 //
@@ -162,9 +161,11 @@ function onDropEvent(data, event) {
 	var i = STATE.mouseToIndex(event);
 	if (data == "trash") {
 		STATE.pieces[i] = null;
+		STATE.trashed.push(i);
 	}
 	else {
 		STATE.pieces[i] = data;
+		STATE.added.push(i);
 	}
 	render();
 }
@@ -272,6 +273,29 @@ function drawArrow(ctx, size, originCoord, endCoord) {
 	ctx.stroke();
 }
 
+function drawCross(ctx, size, coord) {
+	var x = size*(coord.col+0.5);
+	var y = size*(coord.row+0.5);
+	var d = 0.8*size/2;
+
+	ctx.beginPath();
+	ctx.moveTo(x-d, y-d);
+	ctx.lineTo(x+d, y+d);
+
+	ctx.moveTo(x+d, y-d);
+	ctx.lineTo(x-d, y+d);
+	ctx.stroke();
+}
+
+function drawBorder(ctx, size, coord) {
+	var x = size*(coord.col);
+	var y = size*(coord.row);
+
+	ctx.beginPath();
+	ctx.rect(x, y, size, size);
+	ctx.stroke();	
+}
+
 // Render the canvas
 function render() {
 	var ctx = COMPONENTS.ctx;
@@ -327,6 +351,17 @@ function render() {
 		drawArrow(ctx, size, from, to);
 	}
 
+	for (var i = 0; i < STATE.trashed.length; i++) {
+		var coord = STATE.indexToCoord(STATE.trashed[i]);
+		drawCross(ctx, size, coord);
+	}
+
+	for (var i = 0; i < STATE.added.length; i++) {
+		var coord = STATE.indexToCoord(STATE.added[i]);
+		drawBorder(ctx, size, coord);
+	}
+
+
 	//Generate the URL for the new board state
 	var fen = "";
 	var blankCount = 0;
@@ -356,7 +391,7 @@ function render() {
 		lastTurn += CHARS[move.to];
 	}
 
-	//If we've recorded a move, then show the output
+	//If we've recorded a move, then show the output URL
 	if (STATE.recorded.length > 0) {
 		var nextMove = 1 - STATE.current;
 		var url = window.location.origin + window.location.pathname; 
