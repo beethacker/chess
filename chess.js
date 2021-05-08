@@ -3,7 +3,13 @@
 // Constants
 //
 //
-const CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_";
+
+//Char set used to code URL
+const CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.~";
+
+//Pieces
+const WHITE = 0;
+const BLACK = 1;
 
 const KING = 0;
 const QUEEN = 1;
@@ -21,9 +27,12 @@ const PIECE_NAMES = {
 	"5": "pawn"
 }
 
-const WHITE = 0;
-const BLACK = 1;
+//Operations
+const MOVE = 0;
+const ADD = 64;			//Special case for URL encoding 8x8 board
+const DELETE = 65;      //Special case for URL encoding 8x8 board
 
+//Size of sprites!
 const SPRITE_DIM = 200;
 
 //
@@ -40,19 +49,16 @@ var STATE = {
 	"squarePixels" : 0,
 	"current" : WHITE,
 
-	//TODO maybe this is two arrays of markers, and each stores its type,
-	// and we draw them? 
-	// {type: MOVE, from: , to: }
-	// {type: DELETE, square:, piece: }
-	// {type: ADD, square:, piece: }
-	"recorded" : [],   // moves this turn
-	"trashed" : [],    // trashed this turn
-	"added" : [],	   // added this turn
-
-	"lastTurn" : [],   // moves last turn
-	"lastTurnTrashed" : [],  // trashed last turn
-	"lastTurnAdded" : [],    // added last turn
-
+	// These are filled with an array of "operations". These can be
+	// moves, additions, or deletions. They're stored as objects of the
+	// form:
+	// {type: MOVE, from: x, to: x}
+	// {type: ADD/DELETE, target: x}
+	//
+	//  where x is the coordinate of some square.
+	//
+	"thisTurn" : [],   // Operations made this turn!
+	"lastTurn" : [],   // Operations made LAST turn!
 
 	"indexToCoord" : function(i) {
 		var row = Math.floor(i / this.n);
@@ -75,7 +81,7 @@ var STATE = {
 	},
 
 	"trashCurrentPiece" : function() {
-		this.trashed.push(this.fromSquare);
+		this.thisTurn.push({type: DELETE, target:this.fromSquare});
 		this.inHand = null;
 		this.fromSquare = -1;
 		render();
@@ -139,7 +145,7 @@ function onMouseUp(event) {
 		}
 
 		if (STATE.fromSquare != i) {
-			STATE.recorded.push({from: STATE.fromSquare, to: i});
+			STATE.thisTurn.push({type: MOVE, from: STATE.fromSquare, to: i});
 		}
 
 		STATE.pieces[i] = STATE.inHand;
@@ -161,11 +167,11 @@ function onDropEvent(data, event) {
 	var i = STATE.mouseToIndex(event);
 	if (data == "trash") {
 		STATE.pieces[i] = null;
-		STATE.trashed.push(i);
+		STATE.thisTurn.push({type: DELETE, target:i});
 	}
 	else {
 		STATE.pieces[i] = data;
-		STATE.added.push(i);
+		STATE.thisTurn.push({type: ADD, target: i});
 	}
 	render();
 }
@@ -341,26 +347,28 @@ function render() {
 	}
 
 	// Draw arrows for recorded moves OR for previous moves
-	var arrowMoves = STATE.recorded.length > 0 ? STATE.recorded : STATE.lastTurn;
-	ctx.strokeStyle = STATE.recorded.length > 0 ? "#2c2" : "#a33";
+	var opList = STATE.thisTurn.length > 0 ? STATE.thisTurn : STATE.lastTurn;
+	ctx.strokeStyle = STATE.thisTurn.length > 0 ? "#2c2" : "#a33";
 	ctx.lineWidth = size/20;
 
-	for (var i = 0; i < arrowMoves.length; i++) {
-		var from = STATE.indexToCoord(arrowMoves[i].from);
-		var to = STATE.indexToCoord(arrowMoves[i].to);
-		drawArrow(ctx, size, from, to);
+	for (var i = 0; i < opList.length; i++) {
+		var op = opList[i];
+		switch(op.type) {
+			case MOVE:
+				console.log("ARROW:" + op.from + ", " + op.to);
+				var from = STATE.indexToCoord(op.from);
+				var to = STATE.indexToCoord(op.to);
+				drawArrow(ctx, size, from, to);
+				break;
+			case ADD:			
+				drawBorder(ctx, size, STATE.indexToCoord(op.target));
+				console.log("add");
+				break;
+			case DELETE:
+				drawCross(ctx, size, STATE.indexToCoord(op.target));
+				break;
+		}
 	}
-
-	for (var i = 0; i < STATE.trashed.length; i++) {
-		var coord = STATE.indexToCoord(STATE.trashed[i]);
-		drawCross(ctx, size, coord);
-	}
-
-	for (var i = 0; i < STATE.added.length; i++) {
-		var coord = STATE.indexToCoord(STATE.added[i]);
-		drawBorder(ctx, size, coord);
-	}
-
 
 	//Generate the URL for the new board state
 	var fen = "";
@@ -384,15 +392,26 @@ function render() {
 		}
 	}
 
+	//TODO pull this out
 	var lastTurn = "";
-	for (var i = 0; i < STATE.recorded.length; i++) {
-		var move = STATE.recorded[i];
-		lastTurn += CHARS[move.from];
-		lastTurn += CHARS[move.to];
+	for (var i = 0; i < STATE.thisTurn.length; i++) {
+		var op = STATE.thisTurn[i];
+		switch(op.type) {
+			case MOVE:
+				lastTurn += CHARS[op.from];
+				lastTurn += CHARS[op.to];
+				break;
+
+			default:
+				lastTurn += CHARS[op.type];
+				lastTurn += CHARS[op.target];
+				break;
+
+		}
 	}
 
 	//If we've recorded a move, then show the output URL
-	if (STATE.recorded.length > 0) {
+	if (STATE.thisTurn.length > 0) {
 		var nextMove = 1 - STATE.current;
 		var url = window.location.origin + window.location.pathname; 
 		url += "?pos=" + nextMove + fen;
@@ -471,11 +490,19 @@ $(document).ready(function() {
 		for (var i = 0; i < last.length - 1; i+=2) {
 			var from = CHARS.indexOf(last.charAt(i));
 			var to = CHARS.indexOf(last.charAt(i+1));
-			STATE.lastTurn.push({from: from, to: to});
+			if (from < 64) {
+				STATE.lastTurn.push({type: MOVE, from: from, to: to});
+			}
+			else if (from == ADD) {
+				STATE.lastTurn.push({type: ADD, target: to});
+			}
+			else if (from == DELETE) {
+				STATE.lastTurn.push({type: DELETE, target: to});
+			}
 		}
 	}
 
-	resize();
+	$(window).on("load", function() { resize();});
 
 	$(window).resize(function() {
 		resize();
@@ -503,8 +530,6 @@ $(document).ready(function() {
 
 
 	var adders = document.querySelectorAll(".add");
-	console.log(adders);
-	console.log(adders.length);
 	for (var i = 0; i < adders.length; i++) {
 		var el = adders[i];
 
