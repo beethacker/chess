@@ -79,7 +79,7 @@ var STATE = {
 		this.fromSquare = -1;
 		//TODO we want to mark this as deleted, so note the from square!
 		render();
-	}
+	},
 };
 
 
@@ -162,8 +162,11 @@ function onDropEvent(data, event) {
 	var i = STATE.mouseToIndex(event);
 	if (data == "trash") {
 		STATE.pieces[i] = null;
-		render();
 	}
+	else {
+		STATE.pieces[i] = data;
+	}
+	render();
 }
 
 //
@@ -447,6 +450,7 @@ $(document).ready(function() {
 	  event.dataTransfer.setData( 'text/plain', 'trash');
 	});
 
+
 	$('#trash').mouseup(function() {
 		STATE.trashCurrentPiece();
 	});
@@ -458,6 +462,20 @@ $(document).ready(function() {
 
 	$('#canvas').get(0).addEventListener('drop', function(event) {
 		var data = event.dataTransfer.getData("text");
+		console.log(data);
 		onDropEvent(data, event);
 	});
+
+
+	var adders = document.querySelectorAll(".add");
+	console.log(adders);
+	console.log(adders.length);
+	for (var i = 0; i < adders.length; i++) {
+		var el = adders[i];
+
+		el.addEventListener('dragstart', function(event) {
+			event.dataTransfer.setData('text/plain', this.id);
+		}.bind(el));
+	}
+
 });
