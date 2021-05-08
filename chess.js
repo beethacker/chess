@@ -1,11 +1,8 @@
-
-
 //
 //
 // Constants
 //
 //
-
 const CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_";
 
 const KING = 0;
@@ -35,16 +32,26 @@ const SPRITE_DIM = 200;
 var COMPONENTS = {};
 
 var STATE = {
+	"pieces" : [],   //n x n array of pieces to display
 	"fromSquare" : -1,
 	"mouse" : {offsetx:0, offsety:0},
 	"n" : 8,
-	"pieces" : [],
 	"inHand" : null,
-	"squarePixels" : 1,
-	"recorded" : [],
+	"squarePixels" : 0,
 	"current" : WHITE,
-	// "undoHistory" : [],
-	"lastTurn" : [],
+
+	//TODO maybe this is two arrays of markers, and each stores its type,
+	// and we draw them? 
+	// {type: MOVE, from: , to: }
+	// {type: DELETE, square:, piece: }
+	// {type: ADD, square:, piece: }
+	"recorded" : [],   // moves this turn
+	"trashed" : [],    // trashed this turn
+	"added" : [],	   // added this turn
+
+	"lastTurn" : [],   // moves last turn
+	"lastTurnTrashed" : [],  // trashed last turn
+	"lastTurnAdded" : [],    // added last turn
 
 
 	"indexToCoord" : function(i) {
@@ -66,7 +73,15 @@ var STATE = {
 		}
 		return row*this.n + col;
 	},
+
+	"trashCurrentPiece" : function() {
+		this.inHand = null;
+		this.fromSquare = -1;
+		//TODO we want to mark this as deleted, so note the from square!
+		render();
+	}
 };
+
 
 
 //
@@ -114,7 +129,6 @@ function onMouseDown(event) {
 }
 
 function onMouseUp(event) {
-	console.log("up");
 	//If we're holding a piece, place it on the current square.
 	if (STATE.inHand != null) {
 		var i = STATE.mouseToIndex(event);
@@ -144,6 +158,13 @@ function onMouseMove(event) {
 	}
 }
 
+function onDropEvent(data, event) {
+	var i = STATE.mouseToIndex(event);
+	if (data == "trash") {
+		STATE.pieces[i] = null;
+		render();
+	}
+}
 
 //
 // Clipboard handling!
@@ -373,36 +394,27 @@ $(document).ready(function() {
 	$("#canvas").mousedown(onMouseDown).mouseup(onMouseUp).mousemove(onMouseMove);
 
 	var sPageURL = window.location.search.substring(1);
-	console.log(sPageURL);
 	var sURLVar = sPageURL.split("?");
 	var parameters = {};
 	for (var i = 0; i < sURLVar.length; i++) {
 		var nameVal = sURLVar[i].split("=");
 		parameters[nameVal[0]] = nameVal[1];
 	}
-	console.log(parameters);
 
 	COMPONENTS.output = $("#output");
 	COMPONENTS.output.click(doOutputClicked);
 
-	// console.log(fen);
+	// Parse / default position
 	var pos = parameters.pos;
 	if (pos == null) {
 		pos = "0_rnbqkbnr_pppppppp_8_8_8_8_PPPPPPPP_RNBQKBNR"
 	}
 	pos = pos.replaceAll("_", "");
 
-	if (parameters.last != null) {
-		var last = parameters.last;
-		for (var i = 0; i < last.length - 1; i+=2) {
-			var from = CHARS.indexOf(last.charAt(i));
-			var to = CHARS.indexOf(last.charAt(i+1));
-			STATE.lastTurn.push({from: from, to: to});
-		}
-	}
-
+	// Strip off first character as current player
 	STATE.current = parseInt(pos.charAt(0));
 
+	// Parse board string and set up state.
 	var fen = pos.substring(1);
 	var square = 0;
 	for (var i = 0; i < fen.length; i++) {
@@ -414,15 +426,38 @@ $(document).ready(function() {
 			square += decode.space; 
 		}
 	}
-	console.log(STATE.pieces);
+
+	// Parse last turn arrows
+	if (parameters.last != null) {
+		var last = parameters.last;
+		for (var i = 0; i < last.length - 1; i+=2) {
+			var from = CHARS.indexOf(last.charAt(i));
+			var to = CHARS.indexOf(last.charAt(i+1));
+			STATE.lastTurn.push({from: from, to: to});
+		}
+	}
 
 	resize();
 
-	window.setTimeout(function () { 
-		// window.location = "index.html?nocache=" + (new Date()).getTime();
-	}, 4000); 
-
 	$(window).resize(function() {
 		resize();
+	});
+
+	$('#trash').get(0).addEventListener('dragstart', function (event) {
+	  event.dataTransfer.setData( 'text/plain', 'trash');
+	});
+
+	$('#trash').mouseup(function() {
+		STATE.trashCurrentPiece();
+	});
+
+	$('#canvas').get(0).addEventListener('dragover', function (event) {
+		event.dataTransfer.dropEffect = "move";
+    	event.preventDefault();
+	});
+
+	$('#canvas').get(0).addEventListener('drop', function(event) {
+		var data = event.dataTransfer.getData("text");
+		onDropEvent(data, event);
 	});
 });
