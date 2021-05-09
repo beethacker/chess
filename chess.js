@@ -38,9 +38,12 @@ const SPRITE_DIM = 200;
 //
 // !GLOBAL STATE!
 //
-var COMPONENTS = {};
+var COMPONENTS = {
+	spritesLoaded: false
+};
 
 var STATE = {
+	"activeTouch" : false,
 	"pieces" : [],   //n x n array of pieces to display
 	"fromSquare" : -1,
 	"mouse" : {offsetx:0, offsety:0},
@@ -70,9 +73,9 @@ var STATE = {
 		return {row: row, col: col};
 	},
 
-	"mouseToIndex" : function(event) {
+	"mouseToIndex" : function(event) {		
 		var col = Math.floor(event.offsetX/this.squarePixels);
-		var row = Math.floor(event.offsetY/this.squarePixels);
+		var row = Math.floor(event.offsetY/this.squarePixels);		
 		if (this.current == BLACK) {
 			col = this.n - 1 - col;
 			row = this.n - 1 - row;
@@ -98,7 +101,7 @@ function resize() {
 	var ctx = document.querySelector("#canvas").getContext("2d");
 
 	//TODO do this on a tick....
-	var dim = 8*Math.floor(0.7*Math.min(window.innerWidth, window.innerHeight)/8);
+	var dim = 8*Math.floor(0.95*Math.min(window.innerWidth, window.innerHeight)/8);
 	STATE.squarePixels = dim/8;
 	if (dim != ctx.canvas.width) {
 		ctx.canvas.width = dim;
@@ -107,60 +110,148 @@ function resize() {
 	}	
 }
 
-function onMouseDown(event) {
-	var i = STATE.mouseToIndex(event);
 
-	//Are we holding a piece? 
-	if (STATE.inHand != null) {	
-		//If this is the original square, put it down!
-		if (STATE.fromSquare == i) {
-			STATE.pieces[i] = STATE.inHand;
-			STATE.inHand = null;
-		}
-		//Otherwise, place the piece (basically just a mouse up!)
-		else {
-			onMouseUp(event);
-			return;
-		}
-	}
-	//Not holding a piece, pick one up!
-	else {
-		STATE.mouse = event;
+function liftPiece(i) {
+	if (STATE.pieces[i]) {
 		STATE.inHand = STATE.pieces[i];
 		STATE.pieces[i] = null;
 		STATE.fromSquare = i;
+
+		//We've clickend on a new piece, clear the old selection!
+		if (STATE.selectedPiece != i) {
+			STATE.selectedPiece = null;
+		}
 	}
-	render();
 }
 
-function onMouseUp(event) {
-	//If we're holding a piece, place it on the current square.
+function setPiece(i) {
 	if (STATE.inHand != null) {
-		var i = STATE.mouseToIndex(event);
-
-		//If we release in the same square, ignore the click, and place the piece with
-		//the next mouse down instead!
+		
+		//Case where we set it back down where it was
 		if (STATE.fromSquare == i) {
-			return;
+			if (STATE.selectedPiece != i) {
+				STATE.selectedPiece = i;
+			}
+			else {
+				STATE.selectedPiece = null;
+			}
 		}
-
-		if (STATE.fromSquare != i) {
+		//Case where we put it somewhere new
+		else {
 			STATE.thisTurn.push({type: MOVE, from: STATE.fromSquare, to: i});
+			STATE.selectedPiece = null;
 		}
 
 		STATE.pieces[i] = STATE.inHand;
-		STATE.inHand = null;		
+		STATE.inHand = null;
+		STATE.fromSquare = -1;
+	} 
+}
+
+function colorOf(pieceCode) {
+	var code = pieceCode.charCodeAt(0);
+	if (code >= 65 && code <= 90) {
+		return WHITE;
 	}
-	STATE.fromSquare = -1;
-	STATE.mouse = null;
+	if (code >= 97 && code <= 122) {
+		return BLACK;
+	}
+}
+
+function sameColor(i, j) {
+	var piece1 = STATE.pieces[i];
+	var piece2 = STATE.pieces[j];
+	if (piece1 == null || piece2 == null) {
+		return false;
+	}
+	return colorOf(piece1) == colorOf(piece2);
+}
+
+//When we start an interaction, 
+// !! there shouldn't be a piece in hand already.
+// A) no existing selection, lift the piece
+// B) This piece is already selected.. that's fine, just pick it up
+// C) Another piece was selected. Then it depends who's color it is?
+//      it also depends on whether we want to allow self capture! OH NO! That's super confusing.
+//
+//    I think the UI needs to show a special [x] in part of the cell to mark if we want to 
+//    self capture.  Similar to the confusion around multiple pieces on a cell!
+//
+//    Self capture can also work by, SELECT PIECE, click SELF CAPURE TOOL, click DESTINATION.
+//      rare enough that the extra clicks are fine.
+// 
+function startInteract(i) {
+	if (STATE.selectedPiece == null 
+		|| STATE.selectedPiece == i 
+		|| sameColor(STATE.selectedPiece, i)) {
+		liftPiece(i);
+	}
+	else {
+		liftPiece(STATE.selectedPiece);
+		setPiece(i);
+	}
 	render();
 }
 
+function stopInteract(i) {
+	setPiece(i);
+	render();
+}
+
+function onMouseDown(event) {
+	if (!STATE.activeTouch) {
+		var i = STATE.mouseToIndex(event);
+		STATE.mouse = event;
+		startInteract(i);
+	}
+}
+
+function onMouseUp(event) {
+	if (!STATE.activeTouch) {
+		var i = STATE.mouseToIndex(event);
+		stopInteract(i);
+	}
+}
+
 function onMouseMove(event) {
-	if (STATE.fromSquare > 0) {
+	if (!STATE.activeTouch && STATE.fromSquare > 0) {
 		STATE.mouse = event;
 		render();
 	}
+}
+
+function canvasPosFromTouch(event) {
+	var evt = (typeof event.originalEvent === 'undefined') ? event : event.originalEvent;
+    var touch = evt.touches[0] || evt.changedTouches[0];
+    x = touch.pageX;
+    y = touch.pageY;
+    var offset = $('#canvas').offset();
+    var relx = x - offset.left;
+    var rely = y - offset.top;
+    return {offsetX: relx, offsetY: rely};
+}
+
+function onTouchStart(event) {
+	event.preventDefault();	
+	var mouse = canvasPosFromTouch(event);
+	var i = STATE.mouseToIndex(mouse);
+	STATE.mouse = mouse;
+	STATE.activeTouch = true;
+	startInteract(i);
+}
+
+function onTouchEnd(event) {
+	event.preventDefault();	
+	var mouse = canvasPosFromTouch(event);
+	var i = STATE.mouseToIndex(mouse);
+	STATE.activeTouch = true;
+	stopInteract(i);
+}
+
+function onTouchMove(event) {
+	event.preventDefault();	
+	STATE.mouse = canvasPosFromTouch(event);
+	render();
 }
 
 function onDropEvent(data, event) {
@@ -232,6 +323,7 @@ function drawPiecePx(ctx, img, size, mouse, fen) {
 	var piece = convertFenToRenderPiece(fen);
 	var sleft = SPRITE_DIM*piece.type;
 	var stop = SPRITE_DIM*piece.color;
+	console.log(mouse);
 	ctx.drawImage(img, sleft, stop, SPRITE_DIM, SPRITE_DIM, mouse.offsetX - size/2, mouse.offsetY - size/2, size, size);
 }
 
@@ -316,7 +408,7 @@ function render() {
 			row = STATE.n - 1 - row;
 			col = STATE.n - 1 - col;
 		}
-		if (i == STATE.fromSquare) {
+		if (i == STATE.fromSquare || i == STATE.selectedPiece) {
 			ctx.fillStyle = "#CCFFCC";
 		}
 		else if ((row%2)==(col%2)) {
@@ -342,7 +434,7 @@ function render() {
 	}
 
 	// If there's a piece in hand, draw it at the mouse
-	if (STATE.inHand != null) {
+	if (STATE.inHand != null) {		
 		drawPiecePx(ctx, img, size, STATE.mouse, STATE.inHand);
 	}
 
@@ -355,14 +447,12 @@ function render() {
 		var op = opList[i];
 		switch(op.type) {
 			case MOVE:
-				console.log("ARROW:" + op.from + ", " + op.to);
 				var from = STATE.indexToCoord(op.from);
 				var to = STATE.indexToCoord(op.to);
 				drawArrow(ctx, size, from, to);
 				break;
 			case ADD:			
 				drawBorder(ctx, size, STATE.indexToCoord(op.target));
-				console.log("add");
 				break;
 			case DELETE:
 				drawCross(ctx, size, STATE.indexToCoord(op.target));
@@ -431,7 +521,7 @@ function decodeFen(char) {
 	if (code == 48) {
 		return {space: 10};
 	}
-	else if (code > 48 && code < 58) {
+	else if (code > 48 && code < 58) { //'0' to '9'
 		return {space: code - 48};
 	}
 	else if (CHARS.includes(char)) {
@@ -441,14 +531,28 @@ function decodeFen(char) {
 	return {};
 }
 
-$(document).ready(function() {
+//Keep trying to resize board until it isn't tiny.... hopefully this fixes start up on some phones
+function checkSize() {
+	if (STATE.squarePixels < 10) {
+		if (COMPONENTS.spritesLoaded) {
+			resize();
+		}
+		else {
+			window.setTimeout(function() {checkSize();}, 1000);
+		}
+	}
+}
 
+function spritesLoaded() {
+	COMPONENTS.spritesLoaded = true;
+}
+
+$(document).ready(function() {
 	COMPONENTS.canvas = document.querySelector("#canvas");
 	COMPONENTS.ctx = COMPONENTS.canvas.getContext("2d");	
 
 	console.log(window.location);
 
-	$("#canvas").mousedown(onMouseDown).mouseup(onMouseUp).mousemove(onMouseMove);
 
 	var sPageURL = window.location.search.substring(1);
 	var sURLVar = sPageURL.split("?");
@@ -502,11 +606,11 @@ $(document).ready(function() {
 		}
 	}
 
-	$(window).on("load", function() { resize();});
-
 	$(window).resize(function() {
 		resize();
 	});
+
+	checkSize();
 
 	$('#trash').get(0).addEventListener('dragstart', function (event) {
 	  event.dataTransfer.setData( 'text/plain', 'trash');
@@ -529,6 +633,12 @@ $(document).ready(function() {
 	});
 
 
+	$("#canvas").mousedown(onMouseDown).mouseup(onMouseUp).mousemove(onMouseMove);
+	COMPONENTS.canvas.addEventListener('touchstart', onTouchStart);
+	COMPONENTS.canvas.addEventListener('touchend', onTouchEnd);
+	COMPONENTS.canvas.addEventListener('touchmove', onTouchMove);
+
+
 	var adders = document.querySelectorAll(".add");
 	for (var i = 0; i < adders.length; i++) {
 		var el = adders[i];
@@ -539,3 +649,4 @@ $(document).ready(function() {
 	}
 
 });
+
