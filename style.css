@@ -47,7 +47,7 @@
 	display: inline-block;
 }
 
-#trash {
+.big-tool {
 	user-select: none;
 	padding: 10px;
 	margin-left: 20px;
@@ -55,17 +55,29 @@
 	border: solid 4px black;
 }
 
-#trash:hover {
-	background: #fdd;
+.add {
+	border: solid 4px transparent;
 }
 
-.add:hover {
-	background: #fdd;
-}
 
 #tray {
 	display: inline-block;
 	padding: 10px;
 	background: #aaa;
 	border: solid 4px black;
+}
+
+.armed {
+	border: solid 4px green;
+	background: pink;
+}
+
+@media(hover: hover) and (pointer: fine) {
+	#trash:hover {
+		border-color: #fdd;
+	}
+
+	.add:hover {
+		border-color: #fdd;
+	}
 }

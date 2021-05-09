@@ -43,6 +43,7 @@ var COMPONENTS = {
 };
 
 var STATE = {
+	"armed" : null,   // Currently armed tool
 	"activeTouch" : false,
 	"pieces" : [],   //n x n array of pieces to display
 	"fromSquare" : -1,
@@ -110,6 +111,19 @@ function resize() {
 	}	
 }
 
+function doTool(tool, i) {
+	if (tool == "trash") {
+		STATE.pieces[i] = null;
+		STATE.thisTurn.push({type: DELETE, target:i});
+	}
+	else {
+		STATE.pieces[i] = tool;
+		STATE.thisTurn.push({type: ADD, target: i});
+	}
+	STATE.armed = null;
+	clearArmed();
+	render();
+}
 
 function liftPiece(i) {
 	if (STATE.pieces[i]) {
@@ -181,7 +195,10 @@ function sameColor(i, j) {
 //      rare enough that the extra clicks are fine.
 // 
 function startInteract(i) {
-	if (STATE.selectedPiece == null 
+	if (STATE.armed) {
+		doTool(STATE.armed, i);
+	}
+	else if (STATE.selectedPiece == null 
 		|| STATE.selectedPiece == i 
 		|| sameColor(STATE.selectedPiece, i)) {
 		liftPiece(i);
@@ -256,15 +273,7 @@ function onTouchMove(event) {
 
 function onDropEvent(data, event) {
 	var i = STATE.mouseToIndex(event);
-	if (data == "trash") {
-		STATE.pieces[i] = null;
-		STATE.thisTurn.push({type: DELETE, target:i});
-	}
-	else {
-		STATE.pieces[i] = data;
-		STATE.thisTurn.push({type: ADD, target: i});
-	}
-	render();
+	doTool(data, i);
 }
 
 //
@@ -323,7 +332,6 @@ function drawPiecePx(ctx, img, size, mouse, fen) {
 	var piece = convertFenToRenderPiece(fen);
 	var sleft = SPRITE_DIM*piece.type;
 	var stop = SPRITE_DIM*piece.color;
-	console.log(mouse);
 	ctx.drawImage(img, sleft, stop, SPRITE_DIM, SPRITE_DIM, mouse.offsetX - size/2, mouse.offsetY - size/2, size, size);
 }
 
@@ -628,7 +636,6 @@ $(document).ready(function() {
 
 	$('#canvas').get(0).addEventListener('drop', function(event) {
 		var data = event.dataTransfer.getData("text");
-		console.log(data);
 		onDropEvent(data, event);
 	});
 
@@ -648,5 +655,19 @@ $(document).ready(function() {
 		}.bind(el));
 	}
 
+	var toolButtons = $(".tool");
+	toolButtons.click(function(event) {
+		if ($(this).hasClass("armed")) {
+			$(this).removeClass("armed");
+			STATE.armed = null;
+		}
+		else {
+			toolButtons.removeClass("armed");
+			$(this).toggleClass("armed");
+			STATE.armed = this.id;
+		}
+	});
+
+	COMPONENTS.clearArmed = function() { toolButtons.removeClass("armed"); };
 });
 
