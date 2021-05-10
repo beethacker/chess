@@ -39,7 +39,8 @@ const SPRITE_DIM = 200;
 // !GLOBAL STATE!
 //
 var COMPONENTS = {
-	spritesLoaded: false
+	spritesLoaded: false,
+	clearArmed : null,
 };
 
 var STATE = {
@@ -121,7 +122,7 @@ function doTool(tool, i) {
 		STATE.thisTurn.push({type: ADD, target: i});
 	}
 	STATE.armed = null;
-	clearArmed();
+	COMPONENTS.clearArmed();
 	render();
 }
 
@@ -618,6 +619,7 @@ $(document).ready(function() {
 		resize();
 	});
 
+	resize();
 	checkSize();
 
 	$('#trash').get(0).addEventListener('dragstart', function (event) {
@@ -668,6 +670,10 @@ $(document).ready(function() {
 		}
 	});
 
-	COMPONENTS.clearArmed = function() { toolButtons.removeClass("armed"); };
+	COMPONENTS.clearArmed = function() { 
+		toolButtons.removeClass("armed");
+		//HACK TO REFRESH
+		resize();
+	};
 });
 
