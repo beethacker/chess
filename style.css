@@ -8,14 +8,22 @@
 	border: solid 8px gray;
 }
 
+#title {
+	padding: 10px;
+	padding-left: 10%;
+	background: blue;
+	font-size: xx-large;
+	color: white;
+}
+
 #board {
 	border: solid 8px gray;
 }
 
 #output {
 	background: #eee;
-	padding: 15px;
-	font-size: x-small;
+	padding: 20px;
+	font-size: smaller;
 }
 
 #output.animate {

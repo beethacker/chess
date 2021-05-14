@@ -64,58 +64,41 @@ var STATE = {
 	//
 	"thisTurn" : [],   // Operations made this turn!
 	"lastTurn" : [],   // Operations made LAST turn!
-
-	"indexToCoord" : function(i) {
-		var row = Math.floor(i / this.n);
-		var col = i % this.n;
-		if (this.current == BLACK) {
-			row = this.n - 1 - row;
-			col = this.n - 1 - col;
-		}
-		return {row: row, col: col};
-	},
-
-	"mouseToIndex" : function(event) {		
-		var col = Math.floor(event.offsetX/this.squarePixels);
-		var row = Math.floor(event.offsetY/this.squarePixels);		
-		if (this.current == BLACK) {
-			col = this.n - 1 - col;
-			row = this.n - 1 - row;
-		}
-		return row*this.n + col;
-	},
-
-	"trashCurrentPiece" : function() {
-		this.thisTurn.push({type: DELETE, target:this.fromSquare});
-		this.inHand = null;
-		this.fromSquare = -1;
-		render();
-	},
 };
 
+function indexToCoord(i) {
+	var row = Math.floor(i / STATE.n);
+	var col = i % STATE.n;
+	if (STATE.current == BLACK) {
+		row = STATE.n - 1 - row;
+		col = STATE.n - 1 - col;
+	}
+	return {row: row, col: col};
+}
 
-//
-// EVENT HANDLING
-//
+function mouseToIndex(event) {		
+	var col = Math.floor(event.offsetX/STATE.squarePixels);
+	var row = Math.floor(event.offsetY/STATE.squarePixels);		
+	if (STATE.current == BLACK) {
+		col = STATE.n - 1 - col;
+		row = STATE.n - 1 - row;
+	}
+	return row*STATE.n + col;
+}
 
-//On resize, update canvas size and rerender board
-function resize() {
-	var ctx = document.querySelector("#canvas").getContext("2d");
-
-	//TODO do this on a tick....
-	var dim = 8*Math.floor(0.95*Math.min(window.innerWidth, window.innerHeight)/8);
-	STATE.squarePixels = dim/8;
-	if (dim != ctx.canvas.width) {
-		ctx.canvas.width = dim;
-		ctx.canvas.height = dim;
-		render(ctx);
-	}	
+function trashCurrentPiece() {
+	STATE.thisTurn.push({type: DELETE, target:STATE.fromSquare});
+	STATE.inHand = null;
+	STATE.fromSquare = -1;
+	render();
 }
 
 function doTool(tool, i) {
 	if (tool == "trash") {
-		STATE.pieces[i] = null;
-		STATE.thisTurn.push({type: DELETE, target:i});
+		if (STATE.pieces[i] != null) {
+			STATE.pieces[i] = null;
+			STATE.thisTurn.push({type: DELETE, target:i});
+		}
 	}
 	else {
 		STATE.pieces[i] = tool;
@@ -182,6 +165,24 @@ function sameColor(i, j) {
 	return colorOf(piece1) == colorOf(piece2);
 }
 
+//
+// EVENT HANDLING
+//
+
+//On resize, update canvas size and rerender board
+function resize() {
+	var ctx = document.querySelector("#canvas").getContext("2d");
+
+	//TODO do this on a tick....
+	var dim = 8*Math.floor(0.95*Math.min(window.innerWidth, window.innerHeight)/8);
+	STATE.squarePixels = dim/8;
+	if (dim != ctx.canvas.width) {
+		ctx.canvas.width = dim;
+		ctx.canvas.height = dim;
+		render(ctx);
+	}	
+}
+
 //When we start an interaction, 
 // !! there shouldn't be a piece in hand already.
 // A) no existing selection, lift the piece
@@ -218,7 +219,7 @@ function stopInteract(i) {
 
 function onMouseDown(event) {
 	if (!STATE.activeTouch) {
-		var i = STATE.mouseToIndex(event);
+		var i = mouseToIndex(event);
 		STATE.mouse = event;
 		startInteract(i);
 	}
@@ -226,7 +227,7 @@ function onMouseDown(event) {
 
 function onMouseUp(event) {
 	if (!STATE.activeTouch) {
-		var i = STATE.mouseToIndex(event);
+		var i = mouseToIndex(event);
 		stopInteract(i);
 	}
 }
@@ -252,7 +253,7 @@ function canvasPosFromTouch(event) {
 function onTouchStart(event) {
 	event.preventDefault();	
 	var mouse = canvasPosFromTouch(event);
-	var i = STATE.mouseToIndex(mouse);
+	var i = mouseToIndex(mouse);
 	STATE.mouse = mouse;
 	STATE.activeTouch = true;
 	startInteract(i);
@@ -261,7 +262,7 @@ function onTouchStart(event) {
 function onTouchEnd(event) {
 	event.preventDefault();	
 	var mouse = canvasPosFromTouch(event);
-	var i = STATE.mouseToIndex(mouse);
+	var i = mouseToIndex(mouse);
 	STATE.activeTouch = true;
 	stopInteract(i);
 }
@@ -273,14 +274,13 @@ function onTouchMove(event) {
 }
 
 function onDropEvent(data, event) {
-	var i = STATE.mouseToIndex(event);
+	var i = mouseToIndex(event);
 	doTool(data, i);
 }
 
 //
 // Clipboard handling!
 //
-
 function doOutputClicked() {
 	//Select the element.
 	var sel = window.getSelection();
@@ -435,7 +435,7 @@ function render() {
 
 	// Draw pieces! 
 	for (var i = 0; i < STATE.n * STATE.n; i++) {
-		var coord = STATE.indexToCoord(i);
+		var coord = indexToCoord(i);
 		var piece = STATE.pieces[i];
 		if (piece != null) {
 			drawPiece(ctx, img, size, coord, piece);
@@ -456,15 +456,15 @@ function render() {
 		var op = opList[i];
 		switch(op.type) {
 			case MOVE:
-				var from = STATE.indexToCoord(op.from);
-				var to = STATE.indexToCoord(op.to);
+				var from = indexToCoord(op.from);
+				var to = indexToCoord(op.to);
 				drawArrow(ctx, size, from, to);
 				break;
 			case ADD:			
-				drawBorder(ctx, size, STATE.indexToCoord(op.target));
+				drawBorder(ctx, size, indexToCoord(op.target));
 				break;
 			case DELETE:
-				drawCross(ctx, size, STATE.indexToCoord(op.target));
+				drawCross(ctx, size, indexToCoord(op.target));
 				break;
 		}
 	}
@@ -509,12 +509,21 @@ function render() {
 		}
 	}
 
+	//Grab title, if its
+	var maybeTitle = "";
+	var titleText = $("#title").text();
+	if (titleText != null && titleText.length > 0) {
+		maybeTitle = "&title=" + titleText;
+	}
+
 	//If we've recorded a move, then show the output URL
 	if (STATE.thisTurn.length > 0) {
 		var nextMove = 1 - STATE.current;
 		var url = window.location.origin + window.location.pathname; 
 		url += "?pos=" + nextMove + fen;
-		url += "?last=" + lastTurn;
+		url += "&last=" + lastTurn;
+		url += maybeTitle;
+		
 		COMPONENTS.output.text(url);
 	}
 	else {
@@ -564,7 +573,9 @@ $(document).ready(function() {
 
 
 	var sPageURL = window.location.search.substring(1);
-	var sURLVar = sPageURL.split("?");
+	console.log(sPageURL);
+	sPageURL = sPageURL.replaceAll("?", "&");//TEMPORARY!
+	var sURLVar = sPageURL.split("&");
 	var parameters = {};
 	for (var i = 0; i < sURLVar.length; i++) {
 		var nameVal = sURLVar[i].split("=");
@@ -615,6 +626,11 @@ $(document).ready(function() {
 		}
 	}
 
+	//Set Title!
+	if (parameters.title != null) {
+		$("#title").text(parameters.title.replaceAll("%20", " "));
+	}
+
 	$(window).resize(function() {
 		resize();
 	});
@@ -628,7 +644,7 @@ $(document).ready(function() {
 
 
 	$('#trash').mouseup(function() {
-		STATE.trashCurrentPiece();
+		trashCurrentPiece();
 	});
 
 	$('#canvas').get(0).addEventListener('dragover', function (event) {
