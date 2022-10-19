@@ -7,25 +7,22 @@
 //Char set used to code URL
 const CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.~";
 
-//Pieces
-const WHITE = 0;
-const BLACK = 1;
-
-const KING = 0;
-const QUEEN = 1;
-const BISHOP = 2;
-const KNIGHT = 3;
-const ROOK = 4;
-const PAWN = 5;
-
+/*
 const PIECE_NAMES = {
 	"0": "king",
 	"1": "queen",
 	"2": "bishop",
 	"3": "knight",
 	"4": "rook", 
-	"5": "pawn"
-}
+	"5": "pawn",
+	"6": "hawk",
+	"7": "elephant",
+	"8": "amazon",
+	"9": "duck"
+}*/
+
+const WHITE = 0;
+const BLACK = 1;
 
 //Operations
 const MOVE = 0;
@@ -34,11 +31,13 @@ const DELETE = 65;      //Special case for URL encoding 8x8 board
 
 //Size of sprites!
 const SPRITE_DIM = 200;
+const EXPECTED_SPRITES = 2;
 
 //
 // !GLOBAL STATE!
 //
 var COMPONENTS = {
+	spriteLoadCount: 0,
 	spritesLoaded: false,
 	clearArmed : null,
 };
@@ -171,15 +170,14 @@ function sameColor(i, j) {
 
 //On resize, update canvas size and rerender board
 function resize() {
-	var ctx = document.querySelector("#canvas").getContext("2d");
 
 	//TODO do this on a tick....
 	var dim = 8*Math.floor(0.95*Math.min(window.innerWidth, window.innerHeight)/8);
 	STATE.squarePixels = dim/8;
-	if (dim != ctx.canvas.width) {
-		ctx.canvas.width = dim;
-		ctx.canvas.height = dim;
-		render(ctx);
+	if (dim != COMPONENTS.ctx.canvas.width) {
+		COMPONENTS.ctx.canvas.width = dim;
+		COMPONENTS.ctx.canvas.height = dim;
+		render(COMPONENTS.ctx);
 	}	
 }
 
@@ -302,21 +300,52 @@ function doOutputClicked() {
 //  !RENDERING!
 //
 //
+
+//Standard Pieces
+
+const KING = 0;
+const QUEEN = 1;
+const BISHOP = 2;
+const KNIGHT = 3;
+const ROOK = 4;
+const PAWN = 5;
+
+//Extended!
+const HAWK = 0;//archbishop
+const ELEPHANT = 1;//chancellor
+const AMAZON = 2;
+const GENERAL = 3;
+const GRASSHOPPER = 4;
+const DUCK = 5;
+
 function convertFenToRenderPiece(char) {
 	var result = {};
 	switch (char) {
-		case 'p': return {color: BLACK, type: PAWN};
-		case 'r': return {color: BLACK, type: ROOK};
-		case 'n': return {color: BLACK, type: KNIGHT};
-		case 'b': return {color: BLACK, type: BISHOP};
-		case 'k': return {color: BLACK, type: KING};
-		case 'q': return {color: BLACK, type: QUEEN};
-		case 'P': return {color: WHITE, type: PAWN};
-		case 'R': return {color: WHITE, type: ROOK};
-		case 'B': return {color: WHITE, type: BISHOP};
-		case 'N': return {color: WHITE, type: KNIGHT};
-		case 'K': return {color: WHITE, type: KING};
-		case 'Q': return {color: WHITE, type: QUEEN};
+		case 'p': return {color: BLACK, type: PAWN, sheet: 0};
+		case 'r': return {color: BLACK, type: ROOK, sheet: 0};
+		case 'n': return {color: BLACK, type: KNIGHT, sheet: 0};
+		case 'b': return {color: BLACK, type: BISHOP, sheet: 0};
+		case 'k': return {color: BLACK, type: KING, sheet: 0};
+		case 'q': return {color: BLACK, type: QUEEN, sheet: 0};
+		
+		case 'P': return {color: WHITE, type: PAWN, sheet: 0};
+		case 'R': return {color: WHITE, type: ROOK, sheet: 0};
+		case 'B': return {color: WHITE, type: BISHOP, sheet: 0};
+		case 'N': return {color: WHITE, type: KNIGHT, sheet: 0};
+		case 'K': return {color: WHITE, type: KING, sheet: 0};
+		case 'Q': return {color: WHITE, type: QUEEN, sheet: 0};
+
+
+		case 'a': return {color: BLACK, type: AMAZON, sheet: 1};
+		case 'h': return {color: BLACK, type: HAWK, sheet: 1};
+		case 'e': return {color: BLACK, type: ELEPHANT, sheet: 1};
+		case 'g': return {color: BLACK, type: GRASSHOPPER, sheet: 1};
+
+		case 'A': return {color: WHITE, type: AMAZON, sheet: 1};
+		case 'H': return {color: WHITE, type: HAWK, sheet: 1};
+		case 'E': return {color: WHITE, type: ELEPHANT, sheet: 1};
+		case 'G': return {color: WHITE, type: GRASSHOPPER, sheet: 1};
+		case 'D': return {color: WHITE, type: DUCK, sheet: 1};
 	}
 
 	return {};
@@ -326,14 +355,16 @@ function drawPiece(ctx, img, size, coord, fen) {
 	var piece = convertFenToRenderPiece(fen);
 	var sleft = SPRITE_DIM*piece.type;
 	var stop = SPRITE_DIM*piece.color;
-	ctx.drawImage(img, sleft, stop, SPRITE_DIM, SPRITE_DIM, coord.col*size, coord.row*size, size, size);
+	var sheet = piece.sheet;
+	ctx.drawImage(img[sheet], sleft, stop, SPRITE_DIM, SPRITE_DIM, coord.col*size, coord.row*size, size, size);
 }
 
 function drawPiecePx(ctx, img, size, mouse, fen) {
 	var piece = convertFenToRenderPiece(fen);
 	var sleft = SPRITE_DIM*piece.type;
 	var stop = SPRITE_DIM*piece.color;
-	ctx.drawImage(img, sleft, stop, SPRITE_DIM, SPRITE_DIM, mouse.offsetX - size/2, mouse.offsetY - size/2, size, size);
+	var sheet = piece.sheet;
+	ctx.drawImage(img[sheet], sleft, stop, SPRITE_DIM, SPRITE_DIM, mouse.offsetX - size/2, mouse.offsetY - size/2, size, size);
 }
 
 function drawArrow(ctx, size, originCoord, endCoord) {
@@ -406,128 +437,130 @@ function drawBorder(ctx, size, coord) {
 // Render the canvas
 function render() {
 	var ctx = COMPONENTS.ctx;
+	if (ctx) {
+		var size = STATE.squarePixels;
 
-	var size = STATE.squarePixels;
-
-	// Draw board
-	for (var i = 0; i < 64; i++) {
-		var row = Math.floor(i / 8);
-		var col = i % 8;
-		if (STATE.current == BLACK) {
-			row = STATE.n - 1 - row;
-			col = STATE.n - 1 - col;
-		}
-		if (i == STATE.fromSquare || i == STATE.selectedPiece) {
-			ctx.fillStyle = "#CCFFCC";
-		}
-		else if ((row%2)==(col%2)) {
-			ctx.fillStyle = "#FFDDDD";
-		}
-		else {
-			ctx.fillStyle = "#3333FF";
-		}
-		
-		ctx.fillRect(col*size, row*size, size, size);
-	}
-
-
-	var img = document.querySelector("#sprites");
-
-	// Draw pieces! 
-	for (var i = 0; i < STATE.n * STATE.n; i++) {
-		var coord = indexToCoord(i);
-		var piece = STATE.pieces[i];
-		if (piece != null) {
-			drawPiece(ctx, img, size, coord, piece);
-		}
-	}
-
-	// If there's a piece in hand, draw it at the mouse
-	if (STATE.inHand != null) {		
-		drawPiecePx(ctx, img, size, STATE.mouse, STATE.inHand);
-	}
-
-	// Draw arrows for recorded moves OR for previous moves
-	var opList = STATE.thisTurn.length > 0 ? STATE.thisTurn : STATE.lastTurn;
-	ctx.strokeStyle = STATE.thisTurn.length > 0 ? "#2c2" : "#a33";
-	ctx.lineWidth = size/20;
-
-	for (var i = 0; i < opList.length; i++) {
-		var op = opList[i];
-		switch(op.type) {
-			case MOVE:
-				var from = indexToCoord(op.from);
-				var to = indexToCoord(op.to);
-				drawArrow(ctx, size, from, to);
-				break;
-			case ADD:			
-				drawBorder(ctx, size, indexToCoord(op.target));
-				break;
-			case DELETE:
-				drawCross(ctx, size, indexToCoord(op.target));
-				break;
-		}
-	}
-
-	//Generate the URL for the new board state
-	var fen = "";
-	var blankCount = 0;
-	for (var i = 0; i < STATE.n * STATE.n; i++) {
-		var piece = STATE.pieces[i];
-		if (piece != null) {
-			//If there were blanks, add them
-			if (blankCount > 0) {
-				while (blankCount > 8) {
-					fen += 8;
-					blankCount -= 8;
-				}
-				fen += blankCount;
-				blankCount = 0;
+		// Draw board
+		for (var i = 0; i < 64; i++) {
+			var row = Math.floor(i / 8);
+			var col = i % 8;
+			if (STATE.current == BLACK) {
+				row = STATE.n - 1 - row;
+				col = STATE.n - 1 - col;
 			}
-			fen += piece;
+			if (i == STATE.fromSquare || i == STATE.selectedPiece) {
+				ctx.fillStyle = "#CCFFCC";
+			}
+			else if ((row%2)==(col%2)) {
+				ctx.fillStyle = "#FFDDDD";
+			}
+			else {
+				ctx.fillStyle = "#3333FF";
+			}
+			
+			ctx.fillRect(col*size, row*size, size, size);
+		}
+
+
+		var img = [document.querySelector("#sprites"),
+				   document.querySelector("#sprites2")];
+
+		// Draw pieces! 
+		for (var i = 0; i < STATE.n * STATE.n; i++) {
+			var coord = indexToCoord(i);
+			var piece = STATE.pieces[i];
+			if (piece != null) {
+				drawPiece(ctx, img, size, coord, piece);
+			}
+		}
+
+		// If there's a piece in hand, draw it at the mouse
+		if (STATE.inHand != null) {		
+			drawPiecePx(ctx, img, size, STATE.mouse, STATE.inHand);
+		}
+
+		// Draw arrows for recorded moves OR for previous moves
+		var opList = STATE.thisTurn.length > 0 ? STATE.thisTurn : STATE.lastTurn;
+		ctx.strokeStyle = STATE.thisTurn.length > 0 ? "#2c2" : "#a33";
+		ctx.lineWidth = size/20;
+
+		for (var i = 0; i < opList.length; i++) {
+			var op = opList[i];
+			switch(op.type) {
+				case MOVE:
+					var from = indexToCoord(op.from);
+					var to = indexToCoord(op.to);
+					drawArrow(ctx, size, from, to);
+					break;
+				case ADD:			
+					drawBorder(ctx, size, indexToCoord(op.target));
+					break;
+				case DELETE:
+					drawCross(ctx, size, indexToCoord(op.target));
+					break;
+			}
+		}
+
+		//Generate the URL for the new board state
+		var fen = "";
+		var blankCount = 0;
+		for (var i = 0; i < STATE.n * STATE.n; i++) {
+			var piece = STATE.pieces[i];
+			if (piece != null) {
+				//If there were blanks, add them
+				if (blankCount > 0) {
+					while (blankCount > 8) {
+						fen += 8;
+						blankCount -= 8;
+					}
+					fen += blankCount;
+					blankCount = 0;
+				}
+				fen += piece;
+			}
+			else {
+				blankCount++;
+			}
+		}
+
+		//TODO pull this out
+		var lastTurn = "";
+		for (var i = 0; i < STATE.thisTurn.length; i++) {
+			var op = STATE.thisTurn[i];
+			switch(op.type) {
+				case MOVE:
+					lastTurn += CHARS[op.from];
+					lastTurn += CHARS[op.to];
+					break;
+
+				default:
+					lastTurn += CHARS[op.type];
+					lastTurn += CHARS[op.target];
+					break;
+
+			}
+		}
+
+		//Grab title, if its
+		var maybeTitle = "";
+		var titleText = $("#title").text();
+		if (titleText != null && titleText.length > 0) {
+			maybeTitle = "&title=" + titleText;
+		}
+
+		//If we've recorded a move, then show the output URL
+		if (STATE.thisTurn.length > 0) {
+			var nextMove = 1 - STATE.current;
+			var url = window.location.origin + window.location.pathname; 
+			url += "?pos=" + nextMove + fen;
+			url += "&last=" + lastTurn;
+			url += maybeTitle;
+			
+			COMPONENTS.output.text(url);
 		}
 		else {
-			blankCount++;
+			COMPONENTS.output.text(" ");
 		}
-	}
-
-	//TODO pull this out
-	var lastTurn = "";
-	for (var i = 0; i < STATE.thisTurn.length; i++) {
-		var op = STATE.thisTurn[i];
-		switch(op.type) {
-			case MOVE:
-				lastTurn += CHARS[op.from];
-				lastTurn += CHARS[op.to];
-				break;
-
-			default:
-				lastTurn += CHARS[op.type];
-				lastTurn += CHARS[op.target];
-				break;
-
-		}
-	}
-
-	//Grab title, if its
-	var maybeTitle = "";
-	var titleText = $("#title").text();
-	if (titleText != null && titleText.length > 0) {
-		maybeTitle = "&title=" + titleText;
-	}
-
-	//If we've recorded a move, then show the output URL
-	if (STATE.thisTurn.length > 0) {
-		var nextMove = 1 - STATE.current;
-		var url = window.location.origin + window.location.pathname; 
-		url += "?pos=" + nextMove + fen;
-		url += "&last=" + lastTurn;
-		url += maybeTitle;
-		
-		COMPONENTS.output.text(url);
-	}
-	else {
-		COMPONENTS.output.text(" ");
 	}
 }
 
@@ -552,7 +585,7 @@ function decodeFen(char) {
 //Keep trying to resize board until it isn't tiny.... hopefully this fixes start up on some phones
 function checkSize() {
 	if (STATE.squarePixels < 10) {
-		if (COMPONENTS.spritesLoaded) {
+		if (COMPONENTS.spritesLoaded && COMPONENTS.ctx) {
 			resize();
 		}
 		else {
@@ -562,7 +595,11 @@ function checkSize() {
 }
 
 function spritesLoaded() {
-	COMPONENTS.spritesLoaded = true;
+	COMPONENTS.spriteLoadCount++;
+	if (COMPONENTS.spriteLoadCount >= EXPECTED_SPRITES) {
+		COMPONENTS.spritesLoaded = true;
+		resize();
+	}
 }
 
 $(document).ready(function() {
